@@ -258,6 +258,19 @@ class RiskTests(unittest.TestCase):
         result = assess_risk(payload, now=NOW)
         self.assertEqual(result.confidence, Level.LOW)
 
+    def test_unknown_freshness_is_not_scored_as_current_weather(self):
+        payload = context()
+        weather = payload["evidence"][1]
+        weather["freshness"] = "unknown"
+        weather["severity"] = "HIGH"
+        weather["value"] = {"rain_probability": 1.0}
+        payload["evidence"] = [weather]
+        result = assess_risk(payload, now=NOW)
+        self.assertNotIn("WEATHER", {factor.type for factor in result.factors})
+        self.assertEqual(result.level, Level.MEDIUM)
+        self.assertIsNone(result.score)
+        self.assertEqual(result.confidence, Level.LOW)
+
 
 class KnowledgeTests(unittest.TestCase):
     def test_retrieval_filters_expired_and_unapproved_documents(self):
@@ -304,6 +317,23 @@ class RouteTests(unittest.TestCase):
         result = analyze_routes(query(), payload, risk, now=NOW)
         self.assertTrue(result.alternatives[0].usable)
         self.assertEqual(result.alternatives[0].risk_level, Level.MEDIUM)
+        self.assertFalse(result.alternatives[0].clearly_safer)
+
+    def test_optional_coverage_does_not_hide_complete_alternative(self):
+        payload = context()
+        coverage = payload["routes"][1]["segments"][0]["coverage"]
+        coverage["closure"] = "missing"
+        coverage["official_alert"] = "missing"
+        risk = assess_risk(payload, now=NOW)
+        result = analyze_routes(query(), payload, risk, now=NOW)
+        self.assertTrue(result.alternatives[0].clearly_safer)
+
+    def test_missing_essential_coverage_blocks_clearly_safer(self):
+        payload = context()
+        coverage = payload["routes"][1]["segments"][0]["coverage"]
+        coverage["disaster_event"] = "missing"
+        risk = assess_risk(payload, now=NOW)
+        result = analyze_routes(query(), payload, risk, now=NOW)
         self.assertFalse(result.alternatives[0].clearly_safer)
 
 

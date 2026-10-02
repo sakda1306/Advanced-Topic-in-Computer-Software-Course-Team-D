@@ -67,7 +67,7 @@ def _number(value: Any) -> float | None:
 def _factor_from_record(record: IntegratedEvidence) -> tuple[float, RiskFactorResult | None, bool]:
     """Return score, factor, and whether the record is a hard safety constraint."""
 
-    if record.status != "available" or record.freshness == "stale":
+    if record.status != "available" or record.freshness != "fresh":
         return 0.0, None, False
     value = _mapping(record.value)
     severity = str(record.severity or value.get("severity") or "").upper()
@@ -216,17 +216,17 @@ def assess_risk(
             level=Level.HIGH,
             description="Integrated context reports an active travel restriction.",
         ))
-    elif not parsed.evidence:
+    elif not usable:
         factors.append(RiskFactorResult(
             type="DATA_INCOMPLETE",
             level=Level.MEDIUM,
             description=(
-                "No detailed evidence was supplied; restriction status alone cannot establish "
-                "low travel risk."
+                "No current usable evidence was supplied; restriction status alone cannot "
+                "establish low travel risk."
             ),
         ))
 
-    evidence_incomplete = not parsed.evidence and parsed.active_restriction is not True
+    evidence_incomplete = not usable and parsed.active_restriction is not True
     risk_level = (
         Level.HIGH
         if hard_constraint
