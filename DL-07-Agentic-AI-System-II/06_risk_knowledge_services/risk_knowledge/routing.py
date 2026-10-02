@@ -21,6 +21,9 @@ from .models import (
 
 
 LEVEL_RANK = {Level.LOW: 0, Level.MEDIUM: 1, Level.HIGH: 2}
+ESSENTIAL_COVERAGE = frozenset({
+    "current_weather", "weather_forecast", "transport_status", "disaster_event"
+})
 
 
 def _haversine_km(left: tuple[float, float], right: tuple[float, float]) -> float:
@@ -62,7 +65,7 @@ def _matched_ids(route: IntegratedRoute) -> set[str]:
 
 
 def _is_hard_closure(record: IntegratedEvidence) -> bool:
-    if record.status != "available" or record.freshness == "stale":
+    if record.status != "available" or record.freshness != "fresh":
         return False
     value = record.value if isinstance(record.value, dict) else {}
     active = value.get("active", True)
@@ -83,8 +86,7 @@ def _record_level(record: IntegratedEvidence) -> Level:
 
 def _has_complete_coverage(route: IntegratedRoute) -> bool:
     return bool(route.segments) and all(
-        segment.coverage
-        and all(status.lower() == "covered" for status in segment.coverage.values())
+        all(segment.coverage.get(kind, "").lower() == "covered" for kind in ESSENTIAL_COVERAGE)
         for segment in route.segments
     )
 
@@ -101,7 +103,7 @@ def _route_info(
     closure = any(_is_hard_closure(record) for record in matched)
     level = default_level
     for record in matched:
-        if record.status == "available" and record.freshness != "stale":
+        if record.status == "available" and record.freshness == "fresh":
             candidate = _record_level(record)
             if LEVEL_RANK[candidate] > LEVEL_RANK[level]:
                 level = candidate
